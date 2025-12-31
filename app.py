@@ -72,7 +72,7 @@ if not st.session_state.authenticated:
 
 # ==================== 标题 ====================
 st.markdown('<h1 class="title-header">检力资源科学管理暨检察官业绩数智平台</h1>', unsafe_allow_html=True)
-st.markdown('<p class="subtitle">—— 科学定岗 • 人岗适配 • 精准画像 • 增强版 v3.2 ——</p>', unsafe_allow_html=True)
+st.markdown('<p class="subtitle">—— 科学定岗 • 人岗适配 • 精准画像 ——</p>', unsafe_allow_html=True)
 
 # ==================== 数据加载 ====================
 @st.cache_data(ttl=600)
