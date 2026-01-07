@@ -276,6 +276,6 @@ else:
 st.markdown("""
     <hr>
     <p style='text-align: center; color: #666;'>
-    检力资源科学管理平台 v3.2 • 2025年12月31日 • 仅限内部使用
+    检力资源科学管理平台 • 2025年12月31日 • 仅限内部使用
     </p>
     """, unsafe_allow_html=True)
