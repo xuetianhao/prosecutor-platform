@@ -1,281 +1,292 @@
 import streamlit as st
 import pandas as pd
-import plotly.graph_objects as go
 import plotly.express as px
-import matplotlib.pyplot as plt
-import seaborn as sns
-import datetime
-import base64
-import io
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
+import plotly.graph_objects as go
 
-# ==================== 页面配置 ====================
+# =====================================================
+# 1. 页面配置
+# =====================================================
 st.set_page_config(
-    page_title="检力资源科学管理暨检察官业绩数智平台",
+    page_title="检力资源业绩数智平台",
     page_icon="⚖️",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
 
-# ==================== 自定义 CSS ====================
+# =====================================================
+# 2. 全局样式
+# =====================================================
 st.markdown("""
-    <style>
-    .main {background-color: #f8f9fc;}
-    .card {
-        background-color: white;
-        padding: 25px;
-        border-radius: 15px;
-        box-shadow: 0 6px 20px rgba(0,0,0,0.08);
-        margin-bottom: 30px;
-    }
-    .title-header {font-size: 2.8rem; color: #003366; text-align: center;}
-    .subtitle {text-align: center; color: #555; font-size: 1.3rem; margin-bottom: 3rem;}
-    .metric-card {
-        background-color: #e6f0ff; padding: 15px; border-radius: 10px;
-        text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-# ==================== 登录系统 ====================
-VALID_USERS = {
-    "admin": {"password": "123456", "role": "管理员"},
-    "leader": {"password": "leader2025", "role": "领导"},
-    "user": {"password": "prosecutor", "role": "普通干警"},
+<style>
+/* ===== 背景 ===== */
+[data-testid="stAppViewContainer"] {
+    background: radial-gradient(circle at 20% 20%, #f2f6fb 0%, #e6edf6 90%);
 }
 
-if 'authenticated' not in st.session_state:
-    st.session_state.authenticated = False
-    st.session_state.username = ""
-    st.session_state.role = ""
+/* ===== 侧边栏 ===== */
+[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #081f3f, #0a2d5a);
+    border-right: 1px solid rgba(255,255,255,0.08);
+}
+[data-testid="stSidebar"] * {
+    color: rgba(235,242,255,0.9);
+    font-size: 13px;
+}
 
-def login():
-    st.markdown("<h2 style='text-align: center; color: #003366;'>⚖️ 系统登录</h2>", unsafe_allow_html=True)
-    with st.form("login_form"):
-        username = st.text_input("用户名")
-        password = st.text_input("密码", type="password")
-        submit = st.form_submit_button("登录", use_container_width=True)
-        if submit:
-            if username in VALID_USERS and VALID_USERS[username]["password"] == password:
-                st.session_state.authenticated = True
-                st.session_state.username = username
-                st.session_state.role = VALID_USERS[username]["role"]
-                st.success(f"欢迎 {username}（{st.session_state.role}）登录！")
-                st.rerun()
-            else:
-                st.error("用户名或密码错误")
+/* ===== 主业务卡片 ===== */
+.glass-card {
+    background: rgba(255,255,255,0.75);
+    backdrop-filter: blur(14px);
+    border-radius: 22px;
+    padding: 24px;
+    border: 1px solid rgba(255,255,255,0.45);
+    box-shadow: 0 14px 36px rgba(0,0,0,0.06);
+    margin-bottom: 20px;
+}
 
-if not st.session_state.authenticated:
-    login()
-    st.stop()
+/* 空卡片自动隐藏 */
+.glass-card:empty {
+    display: none;
+}
 
-# ==================== 标题 ====================
-st.markdown('<h1 class="title-header">检力资源科学管理暨检察官业绩数智平台</h1>', unsafe_allow_html=True)
-st.markdown('<p class="subtitle">—— 科学定岗 • 人岗适配 • 精准画像 ——</p>', unsafe_allow_html=True)
+/* ===== KPI ===== */
+.kpi { text-align:center; padding:14px; }
+.kpi-title { font-size:13px; color:#6b7a90; }
+.kpi-value { font-size:32px; font-weight:700; color:#0a2d5a; }
+.kpi-note  { font-size:12px; opacity:0.6; }
 
-# ==================== 数据加载 ====================
+/* ===== 页面标题 ===== */
+.page-title h1 { color:#0a2d5a; margin-bottom:6px; }
+.page-title p  { color:#5b6b82; margin:0; }
+
+/* ===== 能力条 ===== */
+.ability-row { margin-bottom:14px; }
+.ability-title {
+    display:flex;
+    justify-content:space-between;
+    font-size:13px;
+    color:#3a4a63;
+}
+.ability-bar-bg {
+    height:10px;
+    background:#e6ecf3;
+    border-radius:6px;
+    overflow:hidden;
+}
+.ability-bar {
+    height:100%;
+    background:linear-gradient(90deg,#003366,#0077cc);
+}
+.ability-tag {
+    font-size:12px;
+    padding:2px 8px;
+    border-radius:10px;
+    background:rgba(0,85,170,0.12);
+    color:#0055aa;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# =====================================================
+# 3. 数据
+# =====================================================
 @st.cache_data(ttl=600)
 def load_data():
-    try:
-        df = pd.read_excel("prosecutors_data.xlsx")
-        abilities = ['业务能力', '信调宣能力', '创新能力', '学习能力', '综合能力', '政治素养']
-        df['综合得分'] = df[abilities].mean(axis=1).round(2)
-        return df
-    except Exception as e:
-        st.error(f"加载数据失败：{e} 请检查文件路径或格式。")
-        return pd.DataFrame()
+    df = pd.read_excel("prosecutors_data.xlsx")
+    abilities = ["业务能力", "信调宣能力", "创新能力", "学习能力", "综合能力", "政治素养"]
+    for c in abilities:
+        df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
+    df["综合得分"] = df[abilities].mean(axis=1).round(2)
+    return df, abilities
 
-df = load_data()
-if df.empty:
-    st.stop()
+df, categories = load_data()
 
-# ==================== 侧边栏 ====================
-st.sidebar.image("https://photo.16pic.com/00/86/23/16pic_8623259_b.jpg", width=120)
-st.sidebar.markdown("### 🔍 筛选与功能导航")
+def ability_level(score):
+    if score >= 9: return "优秀"
+    if score >= 7.5: return "良好"
+    if score >= 6: return "合格"
+    return "需提升"
 
-page = st.sidebar.radio("功能页面", ["主页画像", "统计分析", "数据管理", "AI推荐", "设置"])
-
-search_name = st.sidebar.text_input("🔍 搜索姓名")
-dept_options = ["全部"] + sorted(df["部门"].unique().tolist())
-selected_dept = st.sidebar.selectbox("部门", dept_options)
-min_innov = st.sidebar.slider("最低创新能力", 0.0, 10.0, 0.0, 0.1)
-min_pol = st.sidebar.slider("最低政治素养", 0.0, 10.0, 0.0, 0.1)
-if '年龄' in df.columns:
-    min_age = st.sidebar.slider("最低年龄", int(df['年龄'].min()), int(df['年龄'].max()), 0)
-sort_by = st.sidebar.selectbox("排序", ["综合得分", "业务能力", "创新能力", "政治素养"])
-
-filtered_df = df.copy()
-if search_name:
-    filtered_df = filtered_df[filtered_df["姓名"].str.contains(search_name, case=False)]
-if selected_dept != "全部":
-    filtered_df = filtered_df[filtered_df["部门"] == selected_dept]
-filtered_df = filtered_df[filtered_df["创新能力"] >= min_innov]
-filtered_df = filtered_df[filtered_df["政治素养"] >= min_pol]
-if '年龄' in df.columns:
-    filtered_df = filtered_df[filtered_df["年龄"] >= min_age]
-filtered_df = filtered_df.sort_values(by=sort_by, ascending=False)
-
-st.sidebar.markdown(f"**筛选结果：{len(filtered_df)} 人**")
-
-if st.session_state.role == "管理员":
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("📊 管理员工具")
-    uploaded = st.sidebar.file_uploader("上传新数据（Excel）", type="xlsx")
-    if uploaded:
-        try:
-            new_df = pd.read_excel(uploaded)
-            new_df.to_excel("prosecutors_data.xlsx", index=False)
-            st.sidebar.success("数据更新成功！")
-            st.rerun()
-        except Exception as e:
-            st.sidebar.error(f"上传失败：{e}")
-    csv_backup = df.to_csv(index=False).encode('utf-8-sig')
-    st.sidebar.download_button("📥 下载数据备份 CSV", csv_backup, "backup.csv", "text/csv")
-
-# ==================== 通用变量 ====================
-categories = ['业务能力', '信调宣能力', '创新能力', '学习能力', '综合能力', '政治素养']
-avatar_url = "https://imgs.699pic.com/images/505/813/424.jpg!list1x.v2"
-
-# --- 主页画像 ---
-if page == "主页画像":
-    cols = st.columns(5)
-    metrics = [len(df), len(filtered_df), filtered_df['综合得分'].mean().round(2) if not filtered_df.empty else 0,
-               filtered_df['综合得分'].max() if not filtered_df.empty else 0,
-               filtered_df['综合得分'].min() if not filtered_df.empty else 0]
-    labels = ["总人数", "筛选人数", "平均得分", "最高分", "最低分"]
-    for col, val, lab in zip(cols, metrics, labels):
-        col.markdown(f"<div class='metric-card'><h3>{val}</h3><p>{lab}</p></div>", unsafe_allow_html=True)
-
-    # 新：多人对比模式
-    compare_mode = st.checkbox("启用多人对比模式（选择2-5人）")
-    if compare_mode:
-        selected_names = st.multiselect("选择对比人员", filtered_df["姓名"].tolist(), max_selections=5)
-        if len(selected_names) >= 2:
-            compare_df = filtered_df[filtered_df["姓名"].isin(selected_names)]
-            st.subheader("多人能力对比雷达图")
-            fig_compare = go.Figure()
-            for _, row in compare_df.iterrows():
-                values = [row[c] for c in categories]
-                fig_compare.add_trace(go.Scatterpolar(
-                    r=values + [values[0]],
-                    theta=categories + [categories[0]],
-                    fill='toself',
-                    name=row['姓名']
-                ))
-            fig_compare.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 10])), height=600)
-            st.plotly_chart(fig_compare, use_container_width=True)
-
-    if filtered_df.empty:
-        st.info("无匹配人员，请调整筛选条件。")
-    else:
-        for _, row in filtered_df.iterrows():
-            with st.expander(f"**{row['姓名']}** - 综合得分：{row['综合得分']} （点击展开）", expanded=False):
-                col1, col2 = st.columns([1, 3])
-                with col1:
-                    st.image(avatar_url, width=150)
-                    st.markdown(f"**部门：** {row['部门']}<br>**政治面貌：** {row['政治面貌']}", unsafe_allow_html=True)
-                    st.markdown(f"**备注：** {row.get('备注', '暂无')}")
-                with col2:
-                    values = [row[c] for c in categories]
-                    fig_radar = go.Figure(go.Scatterpolar(r=values + [values[0]], theta=categories + [categories[0]],
-                                                          fill='toself', line_color='#003366'))
-                    fig_radar.update_layout(polar=dict(radialaxis=dict(range=[0,10])), height=450)
-                    st.plotly_chart(fig_radar, use_container_width=True)
-
-                    fig_bar = go.Figure(go.Bar(x=values, y=categories, orientation='h',
-                                               text=values, textposition='outside', marker_color='#0958d9'))
-                    fig_bar.update_layout(height=450, xaxis=dict(range=[0,10]))
-                    st.plotly_chart(fig_bar, use_container_width=True)
-
-                # 新：导出个人 PDF
-                if st.button(f"📄 导出 {row['姓名']} PDF"):
-                    buffer = io.BytesIO()
-                    c = canvas.Canvas(buffer, pagesize=letter)
-                    c.drawString(100, 750, f"检察官画像: {row['姓名']}")
-                    c.drawString(100, 730, f"部门: {row['部门']} | 政治面貌: {row['政治面貌']}")
-                    c.drawString(100, 710, f"综合得分: {row['综合得分']}")
-                    y = 680
-                    for cat, val in zip(categories, values):
-                        c.drawString(100, y, f"{cat}: {val}")
-                        y -= 20
-                    c.save()
-                    buffer.seek(0)
-                    st.download_button("下载 PDF", buffer, f"{row['姓名']}_画像.pdf", "application/pdf")
-
-# --- 统计分析 ---
-elif page == "统计分析":
-    st.subheader("能力热力图（筛选人员）")
-    if not filtered_df.empty:
-        fig, ax = plt.subplots(figsize=(10, max(4, len(filtered_df)/2)))
-        sns.heatmap(filtered_df.set_index("姓名")[categories], annot=True, cmap="YlGnBu", ax=ax)
-        st.pyplot(fig)
-
-    st.subheader("综合得分分布（带KDE曲线）")
-    if not filtered_df.empty:
-        fig, ax = plt.subplots()
-        sns.histplot(filtered_df['综合得分'], kde=True, bins=15, ax=ax)
-        st.pyplot(fig)
-
-    # 新：相关性分析
-    st.subheader("能力维度相关性矩阵")
-    if not filtered_df.empty:
-        corr = filtered_df[categories].corr()
-        fig, ax = plt.subplots(figsize=(8,6))
-        sns.heatmap(corr, annot=True, cmap="coolwarm", ax=ax)
-        st.pyplot(fig)
-
-    st.subheader("部门平均能力对比")
-    dept_avg = df.groupby("部门")[categories].mean().round(2)
-    fig_dept = px.bar(dept_avg.reset_index(), x="部门", y=categories, barmode="group")
-    st.plotly_chart(fig_dept, use_container_width=True)
-
-    st.subheader("Top 10 高分人员")
-    st.dataframe(filtered_df.head(10)[["姓名", "部门", "综合得分"] + categories])
-
-    csv = filtered_df.to_csv(index=False).encode('utf-8-sig')
-    st.download_button("📥 导出筛选数据 CSV", csv, "筛选结果.csv", "text/csv")
-
-# --- 数据管理 ---
-elif page == "数据管理":
-    if st.session_state.role == "管理员":
-        st.subheader("在线编辑数据")
-        edited = st.data_editor(df, num_rows="dynamic", use_container_width=True)
-        if st.button("💾 保存修改"):
-            edited.to_excel("prosecutors_data.xlsx", index=False)
-            st.success("数据已保存！")
-            st.rerun()
-    else:
-        st.warning("仅管理员可编辑。")
-    st.subheader("完整数据预览")
-    st.dataframe(df)
-
-# --- AI推荐 ---
-elif page == "AI推荐":
-    st.markdown("### 🤖 AI智能推荐")
-    st.markdown("**高创新人才（创新能力 ≥ 9.0）**")
-    high_innov = filtered_df[filtered_df["创新能力"] >= 9.0][["姓名", "部门", "创新能力", "综合得分"]]
-    st.dataframe(high_innov if not high_innov.empty else "暂无")
-
-    st.markdown("**综合最强前5人（适合领导岗位）**")
-    top5 = filtered_df.nlargest(5, "综合得分")[["姓名", "部门", "综合得分", "政治素养"]]
-    st.dataframe(top5)
-
-# --- 设置 ---
-else:
-    st.subheader("系统设置")
-    st.write(f"当前用户：{st.session_state.username}（{st.session_state.role}）")
-    dark_mode = st.checkbox("启用深色模式")
-    if dark_mode:
-        st.markdown("<style>.main {background-color: #1e1e1e; color: #fff;}</style>", unsafe_allow_html=True)
-    if st.button("🚪 退出登录"):
-        st.session_state.authenticated = False
-        st.rerun()
-
-# ==================== 底部 ====================
-st.markdown("""
-    <hr>
-    <p style='text-align: center; color: #666;'>
-    检力资源科学管理平台 • 2025年12月31日 • 仅限内部使用
-    </p>
+# =====================================================
+# 4. 侧边栏
+# =====================================================
+with st.sidebar:
+    st.markdown("""
+    <div style="text-align:center;margin-bottom:28px;">
+        <img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" width="64">
+        <h2 style="margin-top:12px;">检力资源数智平台</h2>
+        <p style="opacity:0.7;">Procuratorial Intelligence</p>
+    </div>
     """, unsafe_allow_html=True)
+
+    page = st.radio(
+        "功能导航",
+        ["数字化驾驶舱", "人员精准画像", "统计决策分析", "系统管理"]
+    )
+
+    st.markdown("---")
+    depts = st.multiselect("所属部门", df["部门"].unique(), default=df["部门"].unique())
+    score_range = st.slider("综合得分", 0.0, 10.0, (0.0, 10.0))
+
+f_df = df[df["部门"].isin(depts) & df["综合得分"].between(*score_range)]
+
+# =====================================================
+# 5. 页面标题
+# =====================================================
+st.markdown("""
+<div class="glass-card page-title">
+    <h1>检力资源科学管理与业绩数智平台</h1>
+    <p>多维能力模型驱动的队伍结构分析与辅助决策支持</p>
+</div>
+""", unsafe_allow_html=True)
+
+# =====================================================
+# 6. 数字化驾驶舱
+# =====================================================
+if page == "数字化驾驶舱":
+
+    # KPI 卡片
+    st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+    cols = st.columns(4)
+    kpis = [
+        ("干警总数", len(df), "纳入评价"),
+        ("平均综合得分", f"{f_df['综合得分'].mean():.2f}", "能力均值"),
+        ("部门覆盖", df["部门"].nunique(), "业务部门"),
+        ("高创新人才", len(f_df[f_df["创新能力"] >= 9]), "创新 ≥ 9.0"),
+    ]
+    for col, (t, v, n) in zip(cols, kpis):
+        with col:
+            st.markdown(f"""
+            <div class="kpi">
+                <div class="kpi-title">{t}</div>
+                <div class="kpi-value">{v}</div>
+                <div class="kpi-note">{n}</div>
+            </div>
+            """, unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # 图表区
+    st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+    left, right = st.columns([3, 2])
+
+    with left:
+        st.markdown("#### 部门能力结构分布")
+        if not f_df.empty:
+            dept_avg = f_df.groupby("部门")[categories].mean().reset_index()
+            fig = px.bar(dept_avg, x="部门", y=categories, barmode="group")
+            fig.update_layout(height=420, margin=dict(l=0,r=0,t=40,b=0))
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("当前筛选条件下无数据")
+
+    with right:
+        st.markdown("#### 高分人才 TOP5")
+        if not f_df.empty:
+            st.dataframe(
+                f_df.nlargest(5,"综合得分")[["姓名","部门","综合得分"]],
+                use_container_width=True,
+                hide_index=True
+            )
+        else:
+            st.info("无数据")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# =====================================================
+# 7. 人员精准画像
+# =====================================================
+elif page == "人员精准画像":
+
+    if f_df.empty:
+        st.warning("当前筛选条件下无人员可展示")
+    else:
+        target = st.selectbox("选择人员", f_df["姓名"].unique())
+        row = f_df[f_df["姓名"] == target].iloc[0]
+
+        st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+        left, right = st.columns([2.3, 1])
+
+        with left:
+            st.markdown("#### 能力结构雷达分析")
+            values = [row[c] for c in categories]
+            fig = go.Figure(go.Scatterpolar(
+                r=values + [values[0]],
+                theta=categories + [categories[0]],
+                fill='toself'
+            ))
+            fig.update_layout(
+                polar=dict(radialaxis=dict(range=[0,10])),
+                height=420,
+                showlegend=False
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+        with right:
+            st.markdown(f"""
+            <h2>{row['姓名']}</h2>
+            <p>所属部门：{row['部门']}</p>
+            <p>政治面貌：{row['政治面貌']}</p>
+            <h1 style="text-align:center">{row['综合得分']}</h1>
+            <p style="text-align:center;opacity:0.6;">综合能力评价</p>
+            """, unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+        st.markdown("#### 能力分项解析")
+        for c in categories:
+            score = row[c]
+            st.markdown(f"""
+            <div class="ability-row">
+                <div class="ability-title">
+                    <span>{c}</span>
+                    <span class="ability-tag">{score} · {ability_level(score)}</span>
+                </div>
+                <div class="ability-bar-bg">
+                    <div class="ability-bar" style="width:{score/10*100}%"></div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+# =====================================================
+# 8. 统计决策分析
+# =====================================================
+elif page == "统计决策分析":
+    st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+    tab1, tab2 = st.tabs(["能力热力", "维度相关"])
+
+    with tab1:
+        if not f_df.empty:
+            st.plotly_chart(px.imshow(f_df.set_index("姓名")[categories]), use_container_width=True)
+        else:
+            st.info("无数据")
+
+    with tab2:
+        if not f_df.empty:
+            st.plotly_chart(px.imshow(f_df[categories].corr(), text_auto=True), use_container_width=True)
+        else:
+            st.info("无数据")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# =====================================================
+# 9. 系统管理
+# =====================================================
+elif page == "系统管理":
+    st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+    st.markdown("#### 数据维护")
+    if st.checkbox("开启编辑模式"):
+        st.data_editor(df)
+    st.download_button(
+        "导出筛选数据 CSV",
+        f_df.to_csv(index=False).encode("utf-8-sig"),
+        "filtered.csv"
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# =====================================================
+# 10. 页脚
+# =====================================================
+st.markdown("""
+<p style="text-align:center;color:#8a94a6;font-size:12px;margin-top:40px;">
+北京检察科技中心 ｜ 检力资源业绩数智平台1.0 ｜ 2026
+</p>
+""", unsafe_allow_html=True)
