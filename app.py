@@ -101,16 +101,16 @@ def load_data():
         "群众工作能力"
     ]
     for c in abilities:
-        df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
-    df["综合得分"] = df[abilities].mean(axis=1).round(2)
+        df[c] = pd.to_numeric(df[c], errors="coerce").astype(float).fillna(0.0) # 强制 float，并统一到1位小数
+    df["综合得分"] = df[abilities].mean(axis=1).round(1)
     return df, abilities
 
 df, categories = load_data()
 
-def ability_level(score):
-    if score >= 9: return "优秀"
+def ability_level(score: float) -> str:
+    if score >= 9.0: return "优秀"
     if score >= 7.5: return "良好"
-    if score >= 6: return "合格"
+    if score >= 6.0: return "合格"
     return "需提升"
 
 # =====================================================
@@ -132,7 +132,7 @@ with st.sidebar:
 
     st.markdown("---")
     depts = st.multiselect("所属部门", df["部门"].unique(), default=df["部门"].unique())
-    score_range = st.slider("综合得分", 0.0, 10.0, (0.0, 10.0))
+    score_range = st.slider("综合得分", 0.0, 10.0, (0.0, 10.0), step=0.1)  # 加 step=0.1 支持小数筛选
 
 f_df = df[df["部门"].isin(depts) & df["综合得分"].between(*score_range)]
 
@@ -155,10 +155,10 @@ if page == "数字化驾驶舱":
     st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
     cols = st.columns(4)
     kpis = [
-        ("干警总数", len(df), "纳入评价"),
-        ("平均综合得分", f"{f_df['综合得分'].mean():.2f}", "能力均值"),
-        ("部门覆盖数", df["部门"].nunique(), "业务部门"),
-        ("数字检察骨干", len(f_df[f_df["数字检察能力"] >= 9]), "≥ 9.0"),
+    ("干警总数", len(df), "纳入评价"),
+    ("平均综合得分", f"{f_df['综合得分'].mean():.1f}", "能力均值"),  # 改成 :.1f
+    ("部门覆盖数", df["部门"].nunique(), "业务部门"),
+    ("数字检察骨干", len(f_df[f_df["数字检察能力"] >= 9.0]), "≥ 9.0"),  # 加 .0 强调小数
     ]
     for col, (t, v, n) in zip(cols, kpis):
         with col:
@@ -178,7 +178,7 @@ if page == "数字化驾驶舱":
     with left:
         st.markdown("#### 部门能力结构分布")
         if not f_df.empty:
-            dept_avg = f_df.groupby("部门")[categories].mean().reset_index()
+            dept_avg = f_df.groupby("部门")[categories].mean().round(1).reset_index()  # 加 round(1)
             fig = px.bar(dept_avg, x="部门", y=categories, barmode="group")
             fig.update_layout(height=420, margin=dict(l=0,r=0,t=40,b=0))
             st.plotly_chart(fig, use_container_width=True)
@@ -189,10 +189,11 @@ if page == "数字化驾驶舱":
         st.markdown("#### 综合得分 TOP5")
         if not f_df.empty:
             st.dataframe(
-                f_df.nlargest(5, "综合得分")[["姓名", "部门", "综合得分"]],
-                use_container_width=True,
-                hide_index=True
-            )
+                f_df.nlargest(5, "综合得分")[["姓名", "部门", "综合得分"]]
+                    .style.format({"综合得分": "{:.1f}"}),  # 加 style.format
+                    use_container_width=True,
+                    hide_index=True
+                        )
         else:
             st.info("无数据")
     st.markdown("</div>", unsafe_allow_html=True)
@@ -213,14 +214,9 @@ elif page == "人员精准画像":
 
         with left:
             st.markdown("#### 能力结构雷达分析")
-            values = [row[c] for c in categories]
-            fig = go.Figure(go.Scatterpolar(
-                r=values + [values[0]],
-                theta=categories + [categories[0]],
-                fill='toself'
-            ))
+            values = [round(float(row[c]), 1) for c in categories]  # 强制 float 和 round(1)
             fig.update_layout(
-                polar=dict(radialaxis=dict(range=[0,10])),
+                polar=dict(radialaxis=dict(range=[0,10], tickformat=".1f")),  # 加 tickformat
                 height=420,
                 showlegend=False
             )
@@ -232,7 +228,7 @@ elif page == "人员精准画像":
             <p>部门：{row['部门']}</p>
             <p>身份：{row['身份']}</p>
             <p>政治面貌：{row['政治面貌']}</p>
-            <h1 style="text-align:center">{row['综合得分']}</h1>
+            <h1 style="text-align:center">{row['综合得分']:.1f}</h1>
             <p style="text-align:center;opacity:0.6;">综合能力得分</p>
             """, unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
@@ -240,12 +236,12 @@ elif page == "人员精准画像":
         st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
         st.markdown("#### 能力分项解析")
         for c in categories:
-            score = row[c]
+            score = round(float(row[c]), 1)
             st.markdown(f"""
             <div class="ability-row">
                 <div class="ability-title">
                     <span>{c}</span>
-                    <span class="ability-tag">{score} · {ability_level(score)}</span>
+                    <span class="ability-tag">{score:.1f} · {ability_level(score)}</span>
                 </div>
                 <div class="ability-bar-bg">
                     <div class="ability-bar" style="width:{score/10*100}%"></div>
@@ -263,13 +259,13 @@ elif page == "统计决策分析":
 
     with tab1:
         if not f_df.empty:
-            st.plotly_chart(px.imshow(f_df.set_index("姓名")[categories]), use_container_width=True)
+            st.plotly_chart(px.imshow(f_df.set_index("姓名")[categories].round(1), text_auto=".1f"), use_container_width=True)
         else:
             st.info("无数据")
 
     with tab2:
         if not f_df.empty:
-            st.plotly_chart(px.imshow(f_df[categories].corr(), text_auto=True), use_container_width=True)
+            st.plotly_chart(px.imshow(f_df[categories].corr().round(3), text_auto=".1f"), use_container_width=True)
         else:
             st.info("无数据")
 
@@ -282,10 +278,23 @@ elif page == "系统管理":
     st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
     st.markdown("#### 数据维护")
     if st.checkbox("开启编辑模式"):
-        st.data_editor(df)
+        st.data_editor(
+        df,
+        column_config={
+            c: st.column_config.NumberColumn(
+                label=c,
+                min_value=0.0,
+                max_value=10.0,
+                step=0.1,
+                format="%.1f"
+            ) for c in categories + ["综合得分"]
+        },
+        num_rows="dynamic",
+        hide_index=False  # 可选，显示索引便于编辑
+        )
     st.download_button(
         "导出筛选数据 CSV",
-        f_df.to_csv(index=False).encode("utf-8-sig"),
+        f_df.to_csv(index=False, float_format="%.1f").encode("utf-8-sig"),
         "filtered.csv"
     )
     st.markdown("</div>", unsafe_allow_html=True)
