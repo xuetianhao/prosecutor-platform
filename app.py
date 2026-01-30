@@ -215,6 +215,16 @@ elif page == "人员精准画像":
         with left:
             st.markdown("#### 能力结构雷达分析")
             values = [round(float(row[c]), 1) for c in categories]  # 强制 float 和 round(1)
+            # 构建雷达图 (确保在使用 fig.update_layout 之前已创建 fig)
+            fig = go.Figure(
+                data=go.Scatterpolar(
+                    r=values + [values[0]],
+                    theta=categories + [categories[0]],
+                    fill='toself',
+                    name=row['姓名'],
+                    marker=dict(color='#0077cc')
+                )
+            )
             fig.update_layout(
                 polar=dict(radialaxis=dict(range=[0,10], tickformat=".1f")),  # 加 tickformat
                 height=420,
