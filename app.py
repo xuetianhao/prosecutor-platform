@@ -83,6 +83,67 @@ st.markdown("""
     background:rgba(0,85,170,0.12);
     color:#0055aa;
 }
+
+/* ===== 人员信息面板 ===== */
+.profile-panel {
+    background: linear-gradient(145deg, rgba(255,255,255,0.95), rgba(240,248,255,0.85));
+    border-radius: 16px;
+    padding: 20px;
+    height: 100%;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+}
+.profile-header {
+    text-align: center;
+    margin-bottom: 20px;
+}
+.profile-name {
+    font-size: 24px;
+    color: #0a2d5a;
+    margin: 0;
+}
+.profile-score {
+    font-size: 42px;
+    font-weight: 700;
+    color: #0077cc;
+    margin: 8px 0 4px;
+}
+.profile-score-label {
+    font-size: 13px;
+    color: #6b7a90;
+    opacity: 0.8;
+}
+.profile-section {
+    margin-bottom: 16px;
+}
+.profile-section-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #3a4a63;
+    margin-bottom: 8px;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+    padding-bottom: 4px;
+}
+.profile-info {
+    font-size: 13px;
+    color: #5b6b82;
+    line-height: 1.6;
+}
+.profile-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.profile-list li {
+    margin-bottom: 6px;
+    padding-left: 12px;
+    position: relative;
+}
+.profile-list li:before {
+    content: "•";
+    position: absolute;
+    left: 0;
+    color: #0077cc;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -214,50 +275,95 @@ elif page == "人员精准画像":
 
         with left:
             st.markdown("#### 能力结构雷达分析")
-            values = [round(float(row[c]), 1) for c in categories]  # 强制 float 和 round(1)
-            # 构建雷达图 (确保在使用 fig.update_layout 之前已创建 fig)
+            values = [round(float(row[c]), 1) for c in categories]
+
             fig = go.Figure(
                 data=go.Scatterpolar(
                     r=values + [values[0]],
                     theta=categories + [categories[0]],
                     fill='toself',
                     name=row['姓名'],
-                    marker=dict(color='#0077cc')
+                    line_color='#0077cc',
+                    fillcolor='rgba(0,119,204,0.2)',
+                    mode='lines+markers+text',
+                    text=[f"<b>{v:.1f}</b>" for v in values] + [f"<b>{values[0]:.1f}</b>"],
+                    textposition="middle right",
+                    textfont=dict(
+                        size=14,
+                        color="#004080",
+                        family="Arial Black, sans-serif"
+                    ),
                 )
             )
+
             fig.update_layout(
-                polar=dict(radialaxis=dict(range=[0,10], tickformat=".1f")),  # 加 tickformat
-                height=420,
-                showlegend=False
+                polar=dict(
+                    radialaxis=dict(
+                        range=[0, 10],
+                        tickfont=dict(size=12),
+                        tickformat=".1f",
+                        gridcolor="rgba(0,0,0,0.08)",
+                        showline=False,
+                    ),
+                    angularaxis=dict(
+                        tickfont=dict(size=13, color="#3a4a63"),
+                        rotation=90,
+                        direction="clockwise",
+                    ),
+                ),
+                height=480,
+                margin=dict(l=60, r=60, t=40, b=60),
+                showlegend=False,
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
             )
+
             st.plotly_chart(fig, use_container_width=True)
 
         with right:
-            st.markdown(f"""
-            <h2>{row['姓名']}</h2>
-            <p>部门：{row['部门']}</p>
-            <p>身份：{row['身份']}</p>
-            <p>政治面貌：{row['政治面貌']}</p>
-            <h1 style="text-align:center">{row['综合得分']:.1f}</h1>
-            <p style="text-align:center;opacity:0.6;">综合能力得分</p>
-            """, unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
-        st.markdown("#### 能力分项解析")
-        for c in categories:
-            score = round(float(row[c]), 1)
-            st.markdown(f"""
-            <div class="ability-row">
-                <div class="ability-title">
-                    <span>{c}</span>
-                    <span class="ability-tag">{score:.1f} · {ability_level(score)}</span>
+            st.markdown("""
+            <div class="profile-panel">
+                <div class="profile-header">
+                    <h2 class="profile-name">{name}</h2>
+                    <div class="profile-score">{score:.1f}</div>
+                    <div class="profile-score-label">综合能力得分</div>
                 </div>
-                <div class="ability-bar-bg">
-                    <div class="ability-bar" style="width:{score/10*100}%"></div>
+                <div class="profile-section">
+                    <div class="profile-section-title">基本信息</div>
+                    <ul class="profile-list">
+                        <li>部门：{dept}</li>
+                        <li>政治面貌：{politics}</li>
+                        <li>身份：{identity}</li>
+                        <li>出生年月：{birth}</li>
+                        <li>入院时间：{join}</li>
+                    </ul>
+                </div>
+                <div class="profile-section">
+                    <div class="profile-section-title">履职经历</div>
+                    <p class="profile-info">{experience}</p>
+                </div>
+                <div class="profile-section">
+                    <div class="profile-section-title">奖励</div>
+                    <p class="profile-info">{awards}</p>
+                </div>
+                <div class="profile-section">
+                    <div class="profile-section-title">重点案例和工作</div>
+                    <p class="profile-info">{cases}</p>
                 </div>
             </div>
-            """, unsafe_allow_html=True)
+            """.format(
+                name=row['姓名'],
+                score=row['综合得分'],
+                dept=row['部门'],
+                politics=row['政治面貌'],
+                identity=row['身份'],
+                birth=row['出生年月'],
+                join=row['入院时间'],
+                experience=row['履职经历'] if pd.notna(row['履职经历']) else '无记录',
+                awards=row['奖励'] if pd.notna(row['奖励']) else '无记录',
+                cases=row['重点案例和工作'] if pd.notna(row['重点案例和工作']) else '无记录'
+            ), unsafe_allow_html=True)
+
         st.markdown("</div>", unsafe_allow_html=True)
 
 # =====================================================
