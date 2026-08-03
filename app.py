@@ -420,6 +420,6 @@ elif page == "系统管理":
 # =====================================================
 st.markdown("""
 <p style="text-align:center;color:#8a94a6;font-size:12px;margin-top:40px;">
-北京检察科技中心 ｜ 检力资源业绩数智平台1.0 ｜ 2026
+北京市朝阳区人民检察院 ｜ 检力资源业绩数智平台1.0 ｜ 2026
 </p>
 """, unsafe_allow_html=True)
